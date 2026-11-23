@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FxTrace</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="taskpane.css" />
+</head>
+<body>
+  <header id="anchor">
+    <div class="anchor-row">
+      <button id="btn-origin" class="addr" title="Go back to the traced cell (Esc)">—</button>
+      <span id="anchor-value" class="val"></span>
+    </div>
+    <div id="anchor-formula" class="formula mono"></div>
+  </header>
+
+  <nav class="toolbar">
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-mode="prec" role="tab" title="Precedents">Precedents</button>
+      <button class="tab" data-mode="dep" role="tab" title="Dependents">Dependents</button>
+      <button class="tab" data-mode="fx" role="tab" title="Formula Explorer">Formula</button>
+    </div>
+    <div class="tools">
+      <button id="btn-back" class="icon" title="Previous traced cell (Backspace)" disabled>&#8592;</button>
+      <button id="btn-trace" class="icon" title="Trace the cell currently selected in Excel">&#8635;</button>
+      <label class="follow" title="Re-trace automatically when you select another cell in Excel">
+        <input type="checkbox" id="chk-follow" checked /> Follow
+      </label>
+    </div>
+  </nav>
+
+  <main id="main" tabindex="0">
+    <div id="tree" role="tree"></div>
+    <div id="fx" hidden>
+      <div class="fx-actions">
+        <button id="btn-eval">Evaluate parts</button>
+        <span class="hint">Calculates every sub-expression in a temporary hidden sheet. Note: Excel clears its undo history when an add-in writes to the workbook.</span>
+      </div>
+      <div id="fx-tree" role="tree"></div>
+    </div>
+    <div id="status" class="status"></div>
+  </main>
+
+  <footer id="detail" class="detail"></footer>
+  <div class="keys">↑↓ move &nbsp; → expand &nbsp; ← collapse &nbsp; Enter trace from here &nbsp; Esc back to origin</div>
+
+  <script src="formula.js"></script>
+  <script src="taskpane.js"></script>
+</body>
+</html>
