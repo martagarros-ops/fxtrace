@@ -23,6 +23,7 @@
     state.api.dep = req.isSetSupported("ExcelApi", "1.15");
     state.api.events = req.isSetSupported("ExcelApi", "1.9");
     wireUi();
+    registerShortcuts();
     Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
     if (state.api.events) {
       Excel.run(function (ctx) {
@@ -67,6 +68,7 @@
   function labelFor(sheet, address, baseSheet) {
     return (sheet && sheet !== baseSheet ? sheetRef(sheet) + "!" : "") + address.replace(/\$/g, "");
   }
+  function baseSheet() { return state.anchor ? state.anchor.sheet : null; }
   function mkEntry(o) { o.id = ++uid; o.children = null; o.expanded = false; return o; }
   function isNotFound(e) {
     return e && (e.code === "ItemNotFound" || /not\s*found|no cells|couldn.t find/i.test(e.message || ""));
@@ -339,10 +341,10 @@
           if (n > 1 && n <= SPLIT_DEP_AREAS) {
             for (var r = area.r1; r <= area.r2; r++) for (var c = area.c1; c <= area.c2; c++) {
               var a = F.numToCol(c) + r;
-              entries.push(mkEntry({ label: labelFor(sp.sheet, a, state.anchor.sheet), kind: "cell", sheet: sp.sheet, address: a }));
+              entries.push(mkEntry({ label: labelFor(sp.sheet, a, baseSheet()), kind: "cell", sheet: sp.sheet, address: a }));
             }
           } else {
-            entries.push(mkEntry({ label: labelFor(sp.sheet, sp.address, state.anchor.sheet), kind: "cell", sheet: sp.sheet, address: sp.address.replace(/\$/g, "") }));
+            entries.push(mkEntry({ label: labelFor(sp.sheet, sp.address, baseSheet()), kind: "cell", sheet: sp.sheet, address: sp.address.replace(/\$/g, "") }));
           }
         });
         return loadInfo(ctx, entries).then(function () {
@@ -456,7 +458,7 @@
   // ---------------------------------------------------------------- tree expand / collapse
   function ancestorsInclude(e, sheet, address) {
     var key = norm(sheet, address);
-    if (norm(state.anchor.sheet, state.anchor.address) === key) return true;
+    if (state.anchor && norm(state.anchor.sheet, state.anchor.address) === key) return true;
     for (var p = e; p; p = p.parent) if (p.sheet && norm(p.sheet, p.address) === key) return true;
     return false;
   }
@@ -501,7 +503,7 @@
           var f = r.formulas[i][j], a = F.numToCol(area.c1 + j) + (area.r1 + i);
           var isF = typeof f === "string" && f[0] === "=";
           if (!isF && r.values[i][j] === "") continue; // skip blanks
-          var k = mkEntry({ label: labelFor(e.sheet, a, state.anchor.sheet), kind: "cell", sheet: e.sheet, address: a, cells: 1 });
+          var k = mkEntry({ label: labelFor(e.sheet, a, baseSheet()), kind: "cell", sheet: e.sheet, address: a, cells: 1 });
           k.formula = isF ? f : ""; k.text = r.text[i][j]; k.raw = r.values[i][j];
           k.expandable = state.mode === "dep" ? true : isF;
           kids.push(k);
@@ -524,9 +526,10 @@
     flatten();
     var html = state.flat.map(function (e, i) {
       var caret = e.expandable ? (e.expanded ? "▾" : "▸") : "";
+      if (e.kind === "cell") e.label = labelFor(e.sheet, e.address, baseSheet());
       var lblCls = "lbl mono" + (e.kind === "name" ? " k-name" : e.kind === "struct" ? " k-struct" : e.kind === "ext" ? " k-ext" : "");
       var sub = "";
-      if ((e.kind === "name" || e.kind === "struct") && e.sheet) sub = "→ " + labelFor(e.sheet, e.address, state.anchor.sheet);
+      if ((e.kind === "name" || e.kind === "struct") && e.sheet) sub = "→ " + labelFor(e.sheet, e.address, baseSheet());
       else if (e.info) sub = e.info;
       var badges = "";
       if (e.formula) badges += '<span class="badge fx">fx</span>';
@@ -585,7 +588,7 @@
     }).catch(showError);
   }
 
-  function goOrigin() { if (state.anchor) navigate(state.anchor.sheet, state.anchor.address); }
+  function goOrigin() { if (state.anchor) return navigate(state.anchor.sheet, state.anchor.address); }
   function goBack() {
     var prev = state.history.pop();
     if (!prev) return;
@@ -806,6 +809,118 @@
     }).then(function () {
       if (state.fx === fx) { renderFx(); setStatus("Evaluated " + targets.length + " parts. Values of LET variables can't be shown on their own."); }
     }).catch(showError).then(function () { btn.disabled = false; });
+  }
+
+  // ---------------------------------------------------------------- keyboard shortcuts in the grid
+  // Defined in shortcuts.json; Mac: Cmd+Option+Arrows, Windows: Ctrl+Alt+Arrows.
+  var nav = { stack: [], queue: Promise.resolve() };
+
+  function registerShortcuts() {
+    if (!Office.actions || !Office.actions.associate) return;
+    var map = {
+      FxPrecedents: function () { return navDir("prec"); },
+      FxDependents: function () { return navDir("dep"); },
+      FxNext: function () { return navCycle(1); },
+      FxPrevious: function () { return navCycle(-1); },
+      FxBack: function () { return navBack(); },
+      FxShowPane: function () { return Office.addin.showAsTaskpane(); },
+    };
+    Object.keys(map).forEach(function (id) {
+      Office.actions.associate(id, function () {
+        // run one shortcut at a time, in the order pressed
+        nav.queue = nav.queue.then(map[id]).catch(showError);
+        return nav.queue;
+      });
+    });
+    try {
+      if (Office.context.requirements.isSetSupported("SharedRuntime", "1.1")) {
+        // load FxTrace (and its shortcuts) automatically whenever a workbook opens
+        Office.addin.setStartupBehavior(Office.StartupBehavior.load);
+      }
+    } catch (ignore) { /* not available */ }
+  }
+
+  function readSelection() {
+    return Excel.run(function (ctx) {
+      var cell = ctx.workbook.getActiveCell(); cell.load("address");
+      var sel = ctx.workbook.getSelectedRange(); sel.load("address");
+      return ctx.sync().then(function () {
+        var c = F.splitAddress(cell.address), r = F.splitAddress(sel.address);
+        return { sheet: c.sheet, address: c.address, selKey: norm(r.sheet, r.address) };
+      });
+    });
+  }
+
+  function navDir(dir) {
+    return readSelection().then(function (cur) {
+      var top = nav.stack[nav.stack.length - 1];
+      var item = top && top.list[top.idx];
+      var onItem = item && norm(item.sheet, item.address) === cur.selKey;
+      if (!onItem) nav.stack = [];
+      var src = onItem ? { sheet: item.sheet, address: item.address, cells: item.cells || 1 } : { sheet: cur.sheet, address: cur.address, cells: 1 };
+      var prevMode = state.mode;
+      state.mode = dir; // expandRange / loadInfo use the mode
+      var p = src.cells > 1 ? expandRange(src).then(function (kids) { return { entries: kids }; })
+        : dir === "prec" ? getPrecedents(src.sheet, src.address) : getDependents(src.sheet, src.address);
+      return p.then(function (res) {
+        var list = res.entries.filter(function (e) { return e.sheet && e.address; });
+        if (!list.length) {
+          state.mode = prevMode;
+          setStatus((dir === "prec" ? "No precedents" : "No dependents") + " for " + labelFor(src.sheet, src.address, null) + (res.empty ? " – " + res.empty : ""));
+          return;
+        }
+        var level = { sheet: src.sheet, address: src.address, list: list, idx: 0, dir: dir };
+        nav.stack.push(level);
+        return navigate(list[0].sheet, list[0].address).then(function () { mirror(level, res.note); });
+      });
+    });
+  }
+
+  function navCycle(delta) {
+    var top = nav.stack[nav.stack.length - 1];
+    if (!top) { setStatus("Press Cmd+Option+← (precedents) or Cmd+Option+→ (dependents) first."); return Promise.resolve(); }
+    top.idx = (top.idx + delta + top.list.length) % top.list.length;
+    var e = top.list[top.idx];
+    return navigate(e.sheet, e.address).then(function () { mirror(top); });
+  }
+
+  function navBack() {
+    var top = nav.stack.pop();
+    if (!top) return goOrigin() || Promise.resolve();
+    return navigate(top.sheet, top.address).then(function () {
+      var prev = nav.stack[nav.stack.length - 1];
+      if (prev) mirror(prev);
+      else { state.lastNav = null; return setAnchor(top.sheet, top.address, false); }
+    });
+  }
+
+  /** Show the current shortcut level in the panel (if it is open). */
+  function mirror(level, note) {
+    state.gen++; // cancel any refresh in flight
+    state.mode = level.dir;
+    document.querySelectorAll(".tab").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-mode") === level.dir); });
+    $("tree").hidden = false; $("fx").hidden = true;
+    var same = state.anchor && norm(state.anchor.sheet, state.anchor.address) === norm(level.sheet, level.address);
+    if (!same) {
+      state.anchor = { sheet: level.sheet, address: level.address.replace(/\$/g, "") };
+      Excel.run(function (ctx) {
+        var r = ctx.workbook.worksheets.getItem(level.sheet).getRange(level.address);
+        r.load("formulas,text");
+        return ctx.sync().then(function () {
+          var f = r.formulas[0][0];
+          state.anchor.formula = typeof f === "string" && f[0] === "=" ? f : "";
+          state.anchor.text = r.text[0][0];
+          renderHeader();
+        });
+      }).catch(function () { /* header only */ });
+    }
+    level.list.forEach(function (e) { e.depth = 0; e.parent = null; e.expanded = false; });
+    state.roots = level.list;
+    state.selIdx = level.idx;
+    renderTree();
+    var depth = nav.stack.indexOf(level) + 1;
+    setStatus((level.dir === "prec" ? "Precedent " : "Dependent ") + (level.idx + 1) + " of " + level.list.length +
+      (depth > 1 ? " · level " + depth : "") + (note ? " · " + note : ""));
   }
 
   function showError(e) {

@@ -5,7 +5,19 @@ Excel add-in (Mac, Windows, Excel on the web) for financial-model auditing:
 - **Precedents / Dependents**: navigable tree. Click or use the arrow keys to jump to each cell. Expand a node to keep tracing (ranges expand into their cells). Works across sheets, with named ranges and table (structured) references.
 - **Formula Explorer**: breaks the selected formula into its parts, shows the value of every reference and, on demand, of every sub-expression.
 
-## Keyboard (click inside the panel first)
+## Keyboard shortcuts in the grid (no need to touch the panel)
+
+| Mac | Windows | Action |
+|---|---|---|
+| ⌘⌥← | Ctrl+Alt+← | Go to precedents (press again to go one level deeper) |
+| ⌘⌥→ | Ctrl+Alt+→ | Go to dependents (press again to go one level further) |
+| ⌘⌥↓ / ⌘⌥↑ | Ctrl+Alt+↓ / ↑ | Next / previous cell in the current list |
+| ⌘⌥B | Ctrl+Alt+B | Back one level (repeat to return to the start cell) |
+| ⌘⌥F | Ctrl+Alt+F | Show the FxTrace panel |
+
+If a shortcut clashes with an Excel one, Excel asks once which one to use. Pick **FxTrace**.
+
+## Keyboard inside the panel (click inside the panel first)
 
 | Key | Action |
 |---|---|

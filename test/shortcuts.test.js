@@ -1,0 +1,38 @@
+const { chromium } = require("/opt/npm-tools/node_modules/playwright");
+const fs = require("fs"), path = require("path");
+const MOCK = fs.readFileSync(path.join(__dirname, "mock-office.js"), "utf8");
+const WB = require("./fixture.js");
+(async () => {
+  const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome" });
+  const page = await browser.newPage({ viewport: { width: 340, height: 640 } });
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.addInitScript(wb => { window.__WB = wb; window.__SUPPORT = { "1.15": true }; }, WB);
+  await page.route("https://appsforoffice.microsoft.com/**", r => r.fulfill({ contentType: "application/javascript", body: MOCK }));
+  await page.goto("file://" + path.join(__dirname, "../docs/taskpane.html"));
+  await page.waitForTimeout(400);
+  const act = async id => { await page.evaluate(id => window.__actions[id](), id); await page.waitForTimeout(250); };
+  const where = () => page.evaluate(() => window.__WB.active.sheet + "!" + window.__WB.active.address);
+  const st = () => page.textContent("#status");
+  console.log("registered:", await page.evaluate(() => Object.keys(window.__actions)), "startup:", await page.evaluate(() => window.__startup));
+  console.log("start", await where());
+  await act("FxPrecedents"); console.log("prec ->", await where(), "|", await st());
+  await act("FxNext");       console.log("next ->", await where(), "|", await st());
+  await act("FxNext");       console.log("next ->", await where(), "|", await st());
+  await act("FxPrevious");   console.log("prev ->", await where(), "|", await st());
+  await act("FxPrevious");   console.log("prev ->", await where(), "|", await st());
+  await act("FxPrecedents"); console.log("drill ->", await where(), "|", await st());
+  await act("FxNext");       console.log("next ->", await where(), "|", await st());
+  await act("FxPrecedents"); console.log("drill (input) ->", await where(), "|", await st());
+  await act("FxBack");       console.log("back ->", await where(), "|", await st());
+  await act("FxBack");       console.log("back ->", await where(), "|", await st());
+  await act("FxDependents"); console.log("dep ->", await where(), "|", await st());
+  await act("FxNext");       console.log("next ->", await where(), "|", await st());
+  // user clicks elsewhere then presses dependents
+  await page.evaluate(() => { window.__WB.active = { sheet: "Assumptions", address: "B3" }; });
+  await act("FxDependents"); console.log("dep from B3 ->", await where(), "|", await st());
+  console.log("tree:", await page.$$eval("#tree .row", rs => rs.map(r => r.innerText.replace(/\s+/g, " "))));
+  await page.screenshot({ path: path.join(__dirname, "shot-shortcuts.png") });
+  console.log("ERRORS:", errors);
+  await browser.close();
+})();

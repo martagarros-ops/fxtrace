@@ -131,9 +131,12 @@
     HostType: { Excel: "Excel" },
     EventType: { DocumentSelectionChanged: "sel" },
     context: {
-      requirements: { isSetSupported: function (s, v) { return !!SUPPORT[v]; } },
+      requirements: { isSetSupported: function (s, v) { return s === "SharedRuntime" || !!SUPPORT[v]; } },
       document: { addHandlerAsync: function (t, h) { selHandlers.push(h); } },
     },
+    actions: { associate: function (id, fn) { (window.__actions = window.__actions || {})[id] = fn; } },
+    addin: { setStartupBehavior: function () { window.__startup = true; }, showAsTaskpane: function () { return Promise.resolve(); } },
+    StartupBehavior: { load: "Load" },
     onReady: function (cb) { setTimeout(function () { cb({ host: "Excel" }); }, 0); },
   };
 })();

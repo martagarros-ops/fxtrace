@@ -1,0 +1,18 @@
+{
+  "actions": [
+    { "id": "FxPrecedents", "type": "ExecuteFunction", "name": "FxTrace_Go_to_precedents" },
+    { "id": "FxDependents", "type": "ExecuteFunction", "name": "FxTrace_Go_to_dependents" },
+    { "id": "FxNext", "type": "ExecuteFunction", "name": "FxTrace_Next_in_list" },
+    { "id": "FxPrevious", "type": "ExecuteFunction", "name": "FxTrace_Previous_in_list" },
+    { "id": "FxBack", "type": "ExecuteFunction", "name": "FxTrace_Back_one_level" },
+    { "id": "FxShowPane", "type": "ExecuteFunction", "name": "FxTrace_Show_panel" }
+  ],
+  "shortcuts": [
+    { "action": "FxPrecedents", "key": { "default": "Ctrl+Alt+Left", "mac": "Command+Alt+Left" } },
+    { "action": "FxDependents", "key": { "default": "Ctrl+Alt+Right", "mac": "Command+Alt+Right" } },
+    { "action": "FxNext", "key": { "default": "Ctrl+Alt+Down", "mac": "Command+Alt+Down" } },
+    { "action": "FxPrevious", "key": { "default": "Ctrl+Alt+Up", "mac": "Command+Alt+Up" } },
+    { "action": "FxBack", "key": { "default": "Ctrl+Alt+B", "mac": "Command+Alt+B" } },
+    { "action": "FxShowPane", "key": { "default": "Ctrl+Alt+F", "mac": "Command+Alt+F" } }
+  ]
+}
